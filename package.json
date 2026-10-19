@@ -1,0 +1,24 @@
+{
+  "name": "uin-suka-wawancara-s3",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env scripts/dev.mjs",
+    "build": "tsc --noEmit && vite build",
+    "test": "node --test tests/*.test.mjs",
+    "db:migrate": "node --env-file-if-exists=.env scripts/migrate.mjs",
+    "admin:create": "node --env-file-if-exists=.env scripts/create-admin.mjs",
+    "user:reset-password": "node --env-file-if-exists=.env scripts/reset-password.mjs",
+    "db:backup": "node --env-file-if-exists=.env scripts/backup.mjs"
+  },
+  "dependencies": {
+    "react": "^19.2.0", "react-dom": "^19.2.0", "lucide-react": "^0.468.0",
+    "read-excel-file": "^5.8.6", "papaparse": "^5.5.3", "pg": "^8.16.3", "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "vite": "^6.4.1", "typescript": "^5.9.3", "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0", "@types/papaparse": "^5.3.16", "@electric-sql/pglite": "^0.3.14"
+  }
+}
