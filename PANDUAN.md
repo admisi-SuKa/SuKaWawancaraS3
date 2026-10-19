@@ -2,7 +2,7 @@
 
 ## 1. Isi paket dan cara memulai
 
-Ini adalah **aplikasi lengkap baru**, bukan potongan patch untuk Apps Script. Tidak ada peserta, nilai, password, atau dokumen pribadi dari berkas lama yang disertakan. Template CSV menggunakan data contoh sintetis.
+Ini adalah **aplikasi lengkap baru**, bukan potongan patch untuk Apps Script. Tidak ada peserta, nilai, password, atau dokumen pribadi dari berkas lama yang disertakan. Paket hanya menyertakan daftar judul kolom untuk pengujian, tanpa data pribadi peserta.
 
 Ekstrak ZIP terlebih dahulu. Semua perintah berikut dijalankan melalui Terminal dari folder yang berisi `package.json`.
 
@@ -118,10 +118,12 @@ Rubrik pada versi ini berupa teks pedoman per komponen, sedangkan nilai diisi se
 
 Pilih periode draf lalu **Peserta → Impor peserta**.
 
-- Terima `.xlsx` dan `.csv`; file `.xls` lama perlu disimpan ulang menjadi `.xlsx`.
+- Impor khusus Excel `.xlsx`. File `.xls` lama perlu disimpan ulang menjadi `.xlsx`. Tidak perlu mengubah ekspor pendaftaran menjadi CSV.
 - Bila workbook berisi beberapa sheet, pilih `Data Master`. Sistem memilih sheet bernama Data Master/dataMaster secara otomatis jika ada.
 - Maksimal file 10 MB dan 300 peserta per proses. Bagi file besar menjadi beberapa unggahan; setiap unggahan menjadi satu transaksi.
-- Header wajib: `nomor_pendaftar`, `nomor_peserta`, `nama_lengkap`, `pilihan_1`.
+- Header wajib: `nomor_pendaftar`, `nomor_peserta`, `nama_lengkap`, `pilihan_1`. Urutannya bebas: pencocokan menggunakan nama kolom, bukan huruf A/B/C. Kapital dan spasi tepi dinormalkan; spasi antarkata dibaca sebagai garis bawah.
+- Kolom tambahan juga disimpan. Judul duplikat, data tanpa judul, dan nilai wajib kosong ditampilkan sebelum impor. Klik daftar judul terdeteksi untuk memastikan seluruh kolom terbaca.
+- Klik Lihat 83 kolom (jumlah menyesuaikan file) pada pratinjau untuk memeriksa isi lengkap peserta.
 - Prodi harus sudah tersedia di master atau alias.
 - Klik **Validasi & pratinjau**, periksa kesalahan dan daftar peserta, kemudian **Konfirmasi impor peserta**.
 
@@ -135,7 +137,9 @@ Simpan nomor pendaftar, nomor peserta, dan telepon sebagai **teks** di file sumb
 
 Kolom dokumen yang digunakan termasuk `file_disertasi`, `ijazah_pasca`, `transkrip_pasca`, `sertifikat_toefl`, `sertifikat_toafl`, `sertifikat_pendukung`, `rekomendasi_penelitian`, serta tautan pada `id_karya_tulis` dan `data_khusus`. Tautan harus http/https. Berkas tidak disalin ke database; akses mengikuti sistem pendaftaran sumber.
 
-Kolom sensitif yang tidak digunakan untuk penilaian, seperti NIK, data orang tua, dan penghasilan keluarga, tidak disimpan oleh proses impor ini. Data TOEFL/TOAFL pendaftaran bukan nilai wawancara Bahasa Arab/Inggris.
+Sesuai kebutuhan aplikasi, seluruh kolom sumber disimpan, termasuk identitas, keluarga, pendidikan, penelitian, prestasi, dan dokumen. Penguji hanya dapat memuat profil lengkap peserta yang ditugaskan kepadanya. Data TOEFL/TOAFL pendaftaran bukan nilai wawancara Bahasa Arab/Inggris.
+
+Untuk data yang sudah terimpor dengan versi sebelumnya, gunakan Peserta → Lengkapi profil, lalu unggah ulang Excel lengkap. Mode ini tersedia pada periode draf, dibuka, atau ditutup; tidak pada arsip. Identitas (nomor pendaftar, nomor peserta, nama, prodi) harus sama. Mode ini hanya memperbarui profil tanpa menyentuh penugasan, sesi, kehadiran, atau nilai.
 
 ### E. Jadwal dan sesi
 
@@ -170,13 +174,13 @@ Penguji ganda untuk peserta dan komponen yang sama harus berada pada sesi yang s
 
 Setelah semua peserta memiliki penguji dan sesi untuk **ketiga komponen**, buka penilaian melalui kartu periode.
 
-Pada status **Dibuka**, impor, perubahan jadwal, dan plotting dikunci. Siapkan peserta utama dan susulan yang telah diketahui sebelum membuka periode. Versi ini belum menyediakan pemindahan sesi/ujian ulang setelah penilaian dimulai; ujian tambahan dengan konfigurasi berbeda dapat diselenggarakan sebagai periode terpisah. Jangan mengubah langsung relasi database untuk memindahkan nilai.
+Pada status **Dibuka**, penambahan peserta, perubahan jadwal, dan plotting dikunci; pembaruan profil peserta yang sudah ada tetap tersedia melalui Lengkapi profil. Siapkan peserta utama dan susulan yang telah diketahui sebelum membuka periode. Versi ini belum menyediakan pemindahan sesi/ujian ulang setelah penilaian dimulai; ujian tambahan dengan konfigurasi berbeda dapat diselenggarakan sebagai periode terpisah. Jangan mengubah langsung relasi database untuk memindahkan nilai.
 
 ## 7. Alur penguji
 
 1. Login dan ganti password awal.
 2. Pilih periode, lalu **Penilaian saya**.
-3. Buka peserta yang ditugaskan. Gunakan **Profil & dokumen** untuk membaca biodata dan tautan proposal.
+3. Buka peserta yang ditugaskan. Profil lengkap langsung tersedia pada formulir. Tombol **Data lengkap** pada daftar penilaian juga membuka seluruh data. Profil dikelompokkan, dapat dicari, dan memiliki tampilan urutan kolom sumber; gunakan Buka semua untuk membuka seluruh kelompok.
 4. Tentukan kehadiran komponen: Hadir atau Tidak hadir.
 5. Isi nilai 0–100 dan catatan.
 6. Draf disimpan otomatis sekitar 1,6 detik setelah perubahan. Tombol **Simpan draf** juga tersedia.
@@ -208,8 +212,8 @@ Status periode:
 | Status | Kegiatan yang tersedia |
 | --- | --- |
 | Draf | Edit pengaturan, impor, sesi, dan plotting |
-| Dibuka | Penguji menyimpan draf dan mengirim final |
-| Ditutup | Hasil dapat dibaca; admin dapat membuka ulang periode dengan alasan |
+| Dibuka | Penguji menyimpan draf dan mengirim final; admin dapat melengkapi profil peserta yang sudah ada |
+| Ditutup | Hasil dapat dibaca; admin dapat melengkapi profil atau membuka ulang periode dengan alasan |
 | Diarsipkan | Hanya baca; tidak dapat dibuka kembali melalui aplikasi |
 
 Arsip mensyaratkan seluruh komponen terplot dan seluruh penugasan final, termasuk tidak hadir. Penutupan boleh dilakukan sementara walaupun belum semua final. Pembukaan kembali satu nilai akan menghapus sementara hasil akhir peserta sampai nilai itu difinalisasi ulang.

@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {transaction} from './db.mjs';
 import {token,hashToken,hashPassword,verifyPassword,cookie} from './security.mjs';
-import {AppError,requireThat,normalizeRows,validateScore,calculateResults,COMPONENTS,safeURL} from './domain.mjs';
+import {AppError,requireThat,normalizeRows,validateScore,calculateResults,COMPONENTS,safeURL,profileSummary} from './domain.mjs';
 const id=z.string().uuid(),text=z.string().trim().min(1).max(250);
 const settingsSchema=z.object({weights:z.object({BAHASA:z.number().min(0).max(100),SIGNIFIKANSI:z.number().min(0).max(100),PROPOSAL:z.number().min(0).max(100)}),passing:z.number().min(0).max(100),rubrics:z.object({BAHASA:z.string().max(5000),SIGNIFIKANSI:z.string().max(5000),PROPOSAL:z.string().max(5000)})}).refine(s=>Math.abs(Object.values(s.weights).reduce((a,b)=>a+b,0)-100)<0.001,'Jumlah bobot wajib 100%.');
 const publicUser=u=>({id:u.id,username:u.username,name:u.name,role:u.role,active:u.active,must_change:u.must_change});
@@ -53,6 +53,16 @@ export function createApp(db){return async function app(request){
    return response({ok:true});
   }
   requireThat(!auth.must_change,'Ganti password awal sebelum melanjutkan.',403);
+  if(action==='participant'&&request.method==='GET'){
+   const enrollmentId=id.parse(url.searchParams.get('id'));
+   const e=(await db.query('SELECT e.*,p.name AS program,p.faculty FROM enrollments e JOIN programs p ON p.id=e.program_id WHERE e.id=$1',[enrollmentId])).rows[0];
+   requireThat(e,'Peserta tidak ditemukan.',404);
+   if(auth.role!=='admin'){
+    const assigned=(await db.query('SELECT id FROM assignments WHERE enrollment_id=$1 AND examiner_id=$2',[enrollmentId,auth.id])).rows;
+    requireThat(assigned.length>0,'Anda tidak ditugaskan pada peserta ini.',403);
+   }
+   return response(e);
+  }
   if(action==='bootstrap'&&request.method==='GET'){
    const periods=(await db.query('SELECT * FROM periods ORDER BY created_at DESC')).rows;
    const chosen=url.searchParams.get('period')||periods[0]?.id;
@@ -73,8 +83,9 @@ export function createApp(db){return async function app(request){
    const logs=auth.role==='admin'?(await db.query('SELECT a.id,a.action,a.entity_id,a.detail,a.created_at,u.name AS actor FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_id ORDER BY a.created_at DESC LIMIT 150')).rows:[];
    const imports=auth.role==='admin'&&chosen?(await db.query('SELECT * FROM import_batches WHERE period_id=$1 ORDER BY created_at DESC LIMIT 20',[chosen])).rows:[];
    const period=periods.find(p=>p.id===chosen);
-   const results=auth.role==='admin'&&period?calculateResults(enrollments,assignments,period.settings):[];
-   return response({user:publicUser(auth),periods,programs,users,enrollments,assignments,sessions,logs,imports,results,selectedPeriod:chosen});
+   const summarized=enrollments.map(e=>({...e,profile:profileSummary(e.profile)}));
+   const results=auth.role==='admin'&&period?calculateResults(summarized,assignments,period.settings):[];
+   return response({user:publicUser(auth),periods,programs,users,enrollments:summarized,assignments,sessions,logs,imports,results,selectedPeriod:chosen});
   }
   requireThat(request.method==='POST','Rute tidak ditemukan.',404);
   if(action==='score'){
@@ -142,20 +153,29 @@ export function createApp(db){return async function app(request){
     await c.query('UPDATE periods SET status=$1 WHERE id=$2',[b.status,p.id]);await audit(c,auth,'period.status',p.id,{from:p.status,to:b.status,reason:b.reason});return {ok:true};
    }
    if(action==='import-preview'||action==='import-commit'){
-    const b=z.object({period_id:id,filename:text,rows:z.array(z.record(z.any()))}).parse(body);await getPeriod(c,b.period_id,['draft']);
+    const b=z.object({period_id:id,filename:text,rows:z.array(z.record(z.any())),mode:z.enum(['full','profile-only']).default('full')}).parse(body);
+    requireThat(/\.xlsx$/i.test(b.filename),'Gunakan file Excel .xlsx, bukan CSV.');
+    await getPeriod(c,b.period_id,b.mode==='profile-only'?['draft','open','closed']:['draft']);
     const rows=normalizeRows(b.rows),programs=(await c.query('SELECT * FROM programs')).rows;
     const existing=(await c.query('SELECT * FROM enrollments WHERE period_id=$1',[b.period_id])).rows;
     const errors=[],preview=[];
     for(const row of rows){const p=programs.find(p=>[p.name,...p.aliases].some(n=>n.toLowerCase()===row.program.toLowerCase()));
      const old=existing.find(e=>e.applicant_number===row.applicant_number);const collision=existing.find(e=>e.participant_number===row.participant_number&&e.applicant_number!==row.applicant_number);
+     if(b.mode==='profile-only'){
+      if(!old)errors.push(`${row.name}: peserta belum ada pada periode ini. Gunakan impor peserta dalam periode draf.`);
+      else if(old.participant_number!==row.participant_number||old.name!==row.name||old.program_id!==p?.id)errors.push(`${row.name}: identitas/prodi berbeda dari data tersimpan. Mode lengkapi profil tidak mengubah identitas atau plotting.`);
+     }
      if(!p)errors.push(`Prodi belum dipetakan: ${row.program}`);if(collision)errors.push(`Nomor peserta ${row.participant_number} dipakai pendaftar lain.`);
      if(old&&p&&old.program_id!==p.id){const assigned=(await c.query('SELECT id FROM assignments WHERE enrollment_id=$1',[old.id])).rows.length;if(assigned)errors.push(`${row.name}: prodi berubah setelah plotting; hapus plotting dahulu.`);}
-     preview.push({...row,program_id:p?.id,existing_id:old?.id,operation:old?'Perbarui biodata':'Peserta baru'});
+     preview.push({...row,program_id:p?.id,faculty:p?.faculty||'',existing_id:old?.id,operation:b.mode==='profile-only'?'Lengkapi profil (nilai tetap)':old?'Perbarui biodata':'Peserta baru'});
     }
     if(action==='import-preview')return {rows:preview,errors:[...new Set(errors)],newCount:preview.filter(r=>!r.existing_id).length,updateCount:preview.filter(r=>r.existing_id).length};
     requireThat(!errors.length,errors[0]||'Data impor bermasalah.');
-    for(const row of preview){await c.query('INSERT INTO enrollments(id,period_id,applicant_number,participant_number,name,program_id,profile) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(period_id,applicant_number) DO UPDATE SET participant_number=$4,name=$5,program_id=$6,profile=$7,updated_at=now()',[row.existing_id||randomUUID(),b.period_id,row.applicant_number,row.participant_number,row.name,row.program_id,JSON.stringify(row.profile)]);}
-    const batch=randomUUID();await c.query('INSERT INTO import_batches(id,period_id,actor_id,filename,row_count) VALUES($1,$2,$3,$4,$5)',[batch,b.period_id,auth.id,b.filename,rows.length]);await audit(c,auth,'import.commit',b.period_id,{batch,rows:rows.length,filename:b.filename});return {ok:true,count:rows.length};
+    for(const row of preview){
+     if(b.mode==='profile-only')await c.query('UPDATE enrollments SET profile=$1,updated_at=now() WHERE id=$2',[JSON.stringify(row.profile),row.existing_id]);
+     else await c.query('INSERT INTO enrollments(id,period_id,applicant_number,participant_number,name,program_id,profile) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(period_id,applicant_number) DO UPDATE SET participant_number=$4,name=$5,program_id=$6,profile=$7,updated_at=now()',[row.existing_id||randomUUID(),b.period_id,row.applicant_number,row.participant_number,row.name,row.program_id,JSON.stringify(row.profile)]);
+    }
+    const batch=randomUUID();await c.query('INSERT INTO import_batches(id,period_id,actor_id,filename,row_count) VALUES($1,$2,$3,$4,$5)',[batch,b.period_id,auth.id,b.filename,rows.length]);await audit(c,auth,b.mode==='profile-only'?'profile.refresh':'import.commit',b.period_id,{batch,rows:rows.length,filename:b.filename,mode:b.mode});return {ok:true,count:rows.length};
    }
    if(action==='enrollment-delete'){
     const b=z.object({id}).parse(body);const e=(await c.query('SELECT * FROM enrollments WHERE id=$1',[b.id])).rows[0];requireThat(e,'Peserta tidak ditemukan.',404);await getPeriod(c,e.period_id,['draft']);

@@ -12,13 +12,25 @@ export function normalizeRows(rows){
   requireThat(applicant_number.length<=80&&participant_number.length<=80&&name.length<=250&&program.length<=250,`Baris ${i+2}: data terlalu panjang.`);
   requireThat(!applicants.has(applicant_number)&&!participants.has(participant_number),`Baris ${i+2}: nomor peserta/pendaftar duplikat dalam file.`);
   applicants.add(applicant_number);participants.add(participant_number);
-  const profile={};
-  for(const k of ['email','nohp','nama_pt','asal_jurusan','ipk','nilai_toefl','nilai_toafl','judul_disertasi','jalur_masuk','pilihan_2','pilihan_3','pilihan_4','tanggal_ujian','lokasi_ujian','name_gedung','name_ruang']) profile[k]=String(r[k]??'').slice(0,2500);
-  profile.ipk=profile.ipk.replace(',','.');
+  const entries=Object.entries(r);
+  requireThat(entries.length<=300,`Baris ${i+2}: maksimal 300 kolom per peserta.`);
+  const sourceData=Object.create(null);
+  for(const [key,value] of entries){
+   requireThat(key.length>0&&key.length<=250,`Baris ${i+2}: nama kolom tidak valid.`);
+   requireThat(value===null||value===undefined||['string','number','boolean'].includes(typeof value),`Baris ${i+2}: kolom ${key} harus berupa teks, angka, atau tanggal yang sudah dikonversi.`);
+   const original=value===null||value===undefined?'':String(value);
+   requireThat(original.length<=250000,`Baris ${i+2}: isi kolom ${key} melebihi 250.000 karakter. Data tidak dipotong; perbaiki sumber lalu ulangi.`);
+   sourceData[key]=original;
+  }
+  // Preserve every source column verbatim; normalized fields are convenience copies.
+  const profile={...sourceData,source_data:sourceData,source_columns:entries.map(([key])=>key),import_schema:2};
+  profile.ipk=String(profile.ipk??'').replace(',','.');
   for(const k of ['file_disertasi','ijazah_pasca','transkrip_pasca','sertifikat_toefl','sertifikat_toafl','sertifikat_pendukung','rekomendasi_penelitian']) profile[k]=safeURL(r[k]);
-  for(const k of ['id_karya_tulis','data_khusus']) profile[k]=String(r[k]??'').slice(0,20000);
   return {applicant_number,participant_number,name,program,profile};
  });
+}
+export function profileSummary(profile={}){
+ return {judul_disertasi:profile.judul_disertasi||'',file_disertasi:profile.file_disertasi||'',import_schema:profile.import_schema||1,source_column_count:profile.source_columns?.length||0};
 }
 export function validateScore(component,values,attendance,final){
  const keys=component==='BAHASA'?['arab','inggris']:['nilai'];const result={};

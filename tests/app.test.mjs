@@ -49,10 +49,11 @@ test('Alur integrasi database PostgreSQL: periode → impor → plotting → nil
  const period=await ok('period-save',{name:'S3 Periode A',academic_year:'2027/2028',wave:'Gelombang 1',pathway:'Reguler',settings});
  const period2=await ok('period-save',{name:'S3 Periode B',academic_year:'2028/2029',wave:'Gelombang 1',pathway:'Reguler',settings});
  const program=await ok('program-save',{name:'Prodi A',faculty:'Fakultas A',aliases:['Konsentrasi A']});
- const rows=[{nomor_pendaftar:'001',nomor_peserta:'P001',nama_lengkap:'Peserta A',pilihan_1:'Konsentrasi A',judul_disertasi:'Judul A'}];
- const payload={period_id:period.id,filename:'peserta.csv',rows};
+ const rows=[{nomor_pendaftar:'001',nomor_peserta:'P001',nama_lengkap:'Peserta A',pilihan_1:'Konsentrasi A',judul_disertasi:'Judul A',nik:'IDENTITAS-SINTETIS',nama_lengkap_ibu:'Ibu Contoh',kolom_tambahan:'Semua kolom disimpan'}];
+ const payload={period_id:period.id,filename:'peserta.xlsx',rows};
  await t.test('Pratinjau, duplikat, impor ulang, dan isolasi periode',async()=>{
   const preview=await ok('import-preview',payload);assert.equal(preview.newCount,1);assert.deepEqual(preview.errors,[]);
+  assert.equal((await request('import-preview',{...payload,filename:'peserta.csv'})).status,400);
   assert.equal((await request('import-commit',{...payload,rows:[...rows,...rows]})).status,400);
   await ok('import-commit',payload);await ok('import-commit',{...payload,rows:[{...rows[0],nama_lengkap:'Peserta A Revisi'}]});
   const boot=await ok('bootstrap?period='+period.id);assert.equal(boot.enrollments.length,1);assert.equal(boot.enrollments[0].name,'Peserta A Revisi');
@@ -83,6 +84,11 @@ test('Alur integrasi database PostgreSQL: periode → impor → plotting → nil
   const b=await ok('bootstrap?period='+period.id,undefined,otherAuth);assert.equal(b.assignments.length,1);assert.equal(b.users.length,0);assert.equal(b.results.length,0);
   const a=assignments.find(a=>a.component==='PROPOSAL');const r=await request('score',{assignment_id:a.id,version:0,values:{nilai:80},notes:'',attendance:'present',final:false},otherAuth);assert.equal(r.status,403);
  });
+ await t.test('Profil lengkap hanya dimuat untuk penguji yang ditugaskan',async()=>{
+  const b=await ok('bootstrap?period='+period.id,undefined,examinerAuth);assert.equal(b.enrollments[0].profile.source_data,undefined);assert.equal(b.enrollments[0].profile.nik,undefined);
+  const detail=await ok('participant?id='+eid,undefined,examinerAuth);assert.equal(detail.profile.source_data.nik,'IDENTITAS-SINTETIS');assert.equal(detail.profile.source_data.kolom_tambahan,'Semua kolom disimpan');
+  const other=(await ok('bootstrap?period='+period2.id)).enrollments[0];assert.equal((await request('participant?id='+other.id,undefined,examinerAuth)).status,403);
+ });
  await t.test('Draf, konflik versi, final, nol, dan pembukaan koreksi',async()=>{
   const a=assignments.find(a=>a.component==='PROPOSAL');const body={assignment_id:a.id,version:0,values:{nilai:0},notes:'Nilai nol adalah nilai yang sah',attendance:'present',final:false};
   const saved=await ok('score',body,examinerAuth);assert.equal(saved.version,1);
@@ -94,11 +100,21 @@ test('Alur integrasi database PostgreSQL: periode → impor → plotting → nil
   for(const a of assignments.filter(a=>a.component!=='PROPOSAL'))await ok('score',{assignment_id:a.id,version:0,values:a.component==='BAHASA'?{arab:80,inggris:90}:{nilai:80},notes:'Catatan penguji',attendance:'present',final:true},a.examiner_id===otherId?otherAuth:examinerAuth);
   const b=await ok('bootstrap?period='+period.id);assert.equal(b.results[0].total,85.5);assert.equal(b.results[0].complete,true);assert.ok(b.logs.some(l=>l.action==='score.reopen'));
  });
+ await t.test('Lengkapi profil saat periode dibuka mempertahankan nilai dan plotting',async()=>{
+  const before=await ok('bootstrap?period='+period.id);
+  const complete={...payload,mode:'profile-only',rows:[{...rows[0],nama_lengkap:'Peserta A Revisi',kolom_tambahan:'Data lengkap baru',alamat_lengkap:'Alamat sintetis'}]};
+  const preview=await ok('import-preview',complete);assert.equal(preview.errors.length,0);await ok('import-commit',complete);
+  const after=await ok('bootstrap?period='+period.id);assert.deepEqual(after.assignments,before.assignments);assert.equal(after.results[0].total,before.results[0].total);
+  assert.equal((await ok('participant?id='+eid,undefined,examinerAuth)).profile.source_data.alamat_lengkap,'Alamat sintetis');
+  const invalid=await ok('import-preview',{...complete,rows:[{...complete.rows[0],nomor_peserta:'P999'}]});assert.ok(invalid.errors.length>0);
+  assert.equal((await request('import-commit',{...complete,rows:[{...complete.rows[0],nomor_peserta:'P999'}]})).status,400);
+ });
  await t.test('Penutupan, arsip, dan perlindungan akun admin terakhir',async()=>{
   assert.equal((await request('user-save',{id:adminId,username:'admin',name:'Admin',role:'penguji',active:true})).status,400);
   await ok('period-status',{id:period.id,status:'closed'});
   assert.equal((await request('period-status',{id:period.id,status:'open',reason:''})).status,400);
   await ok('period-status',{id:period.id,status:'archived'});
+  assert.equal((await request('import-commit',{...payload,mode:'profile-only'})).status,400);
   assert.equal((await request('period-status',{id:period.id,status:'open',reason:'Coba'})).status,400);
   assert.equal((await request('score-reopen',{assignment_id:assignments[0].id,reason:'Arsip tidak boleh diubah'})).status,400);
   assert.equal((await request('program-save',{id:program.id,name:'Nama Baru',faculty:'Baru',aliases:[]})).status,400);

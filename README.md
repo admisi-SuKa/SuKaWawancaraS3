@@ -2,6 +2,8 @@
 
 Aplikasi baru untuk UIN Sunan Kalijaga Yogyakarta. Dua role: **Admin** dan **Penguji**. Database Neon dimulai kosong; aplikasi tidak memigrasikan data Apps Script.
 
+**Sudah memakai versi sebelumnya? Baca [UPDATE_DARI_V1.md](UPDATE_DARI_V1.md). Tidak perlu membuat ulang database atau admin.**
+
 **Baca [PANDUAN.md](PANDUAN.md) untuk instalasi, pembuatan admin pertama, konfigurasi Netlify, dan penggunaan.**
 
 ## Cepat mulai
@@ -26,7 +28,7 @@ Aplikasi baru untuk UIN Sunan Kalijaga Yogyakarta. Dua role: **Admin** dan **Pen
 - Periode terpisah dengan status draf → dibuka → ditutup → arsip.
 - Salin pengaturan periode tanpa menyalin peserta atau nilai.
 - Master prodi/konsentrasi, fakultas, dan alias nama impor.
-- Impor Excel/CSV dengan pemilihan sheet, validasi, pratinjau, dan pembaruan biodata.
+- Impor Excel .xlsx berdasarkan nama kolom; urutan bebas, seluruh kolom disimpan, dengan validasi dan pratinjau profil lengkap.
 - Jadwal sesi WIB, ruang, tautan pertemuan, kapasitas, dan daftar antrean.
 - Plotting massal per fakultas/prodi atau peserta pilihan; mendukung tim penguji.
 - Pemeriksaan bentrok jadwal peserta/penguji dan kapasitas sesi.
@@ -47,7 +49,7 @@ sql/001_initial.sql     Skema Neon/PostgreSQL
 scripts/                Migrasi, admin pertama, server lokal, dan backup
 tests/                  Pengujian integrasi menggunakan PostgreSQL WASM (PGlite)
 public/                 Logo resmi yang diminta dan aset statis
-contoh/                 Template impor CSV sintetis
+tests/fixtures/         Daftar 83 judul kolom contoh (tanpa data pribadi)
 ```
 
 `npm test` menjalankan pengujian domain dan integrasi database. `npm run build` memeriksa TypeScript dan menghasilkan frontend produksi. SQL ditulis eksplisit dan parametrik; proyek ini tidak membutuhkan ORM.

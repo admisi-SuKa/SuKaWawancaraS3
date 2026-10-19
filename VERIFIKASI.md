@@ -3,10 +3,12 @@
 - TypeScript: lulus pemeriksaan `tsc --noEmit`.
 - Frontend produksi: `npm run build` berhasil menghasilkan `dist`.
 - Bundle backend: entry point Netlify Functions berhasil dibundle menggunakan esbuild untuk Node.js 22.
-- Pengujian otomatis: **10 lulus, 0 gagal**, menggunakan PGlite (PostgreSQL WASM).
+- Pengujian otomatis: **17 lulus, 0 gagal**, menggunakan PGlite (PostgreSQL WASM).
 - Audit dependensi runtime saat pengemasan: tidak ada kerentanan yang dilaporkan `npm audit --omit=dev`.
-- Pembaca Excel dapat membaca sheet Data Master yang diberikan: 58 peserta, 83 kolom. Data pribadi tersebut tidak disalin ke paket.
-- Template CSV sintetis dapat dibaca tanpa kesalahan.
+- Pembaca Excel dapat membaca Sheet1 dari ekspor terbaru: 15 peserta, 83 kolom. Pembalikan urutan seluruh kolom pada berkas nyata menghasilkan data identik. Baris Excel 15 dan 16 masih memiliki nomor_peserta dan pilihan_1 kosong; data sumber tidak diubah atau disalin ke paket.
+- Pengujian 83 kolom sintetis tetap identik ketika urutan kolom dibalik.
+- Judul kolom hilang/duplikat, kolom tanpa judul, nomor kosong/duplikat, dan presisi identitas diperiksa sebelum impor.
+- Hak akses endpoint profil lengkap dan pembaruan profil tanpa mengubah nilai/plotting telah diuji.
 
 ## Cakupan pengujian
 
